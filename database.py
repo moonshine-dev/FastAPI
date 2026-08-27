@@ -1,8 +1,10 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, DeclarativeBase
 
+from config import settings
 
-DATABASE_URL = "postgresql://postgres:m2554402@localhost:5432/library_db"
+DATABASE_URL = settings.DATABASE_URL
+
 
 
 engine = create_engine(DATABASE_URL)

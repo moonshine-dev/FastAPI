@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import datetime
 from typing import Optional
 
@@ -13,8 +13,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class BookCreate(BaseModel):
@@ -32,8 +31,7 @@ class BookResponse(BaseModel):
     stock: int
     description: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class OrderCreate(BaseModel):
@@ -49,5 +47,4 @@ class OrderResponse(BaseModel):
     return_deadline: datetime
     delivery_date: Optional[datetime] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
