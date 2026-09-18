@@ -10,5 +10,8 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str
 
+    DEFAULT_PAGE_SIZE: int = 10
+    MAX_PAGE_SIZE: int = 100
+
 
 settings = Settings()

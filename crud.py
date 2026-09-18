@@ -47,8 +47,11 @@ def create_book(db: Session, book: schemas.BookCreate):
     db.refresh(new_book)
     return new_book
 
-def get_books(db: Session):
-    return db.query(models.Book).all()
+def get_books(db: Session, skip: int = 0, limit: int = 10):
+    query = db.query(models.Book)
+    total = query.count()
+    books = query.order_by(models.Book.id).offset(skip).limit(limit).all()
+    return books, total
 
 def get_book_by_id(db: Session, book_id: int):
     return db.query(models.Book).filter(models.Book.id == book_id).first()
@@ -92,9 +95,12 @@ def return_book(db: Session, order_id: int):
         
     return None
 
-def get_delayed_orders(db: Session):
+def get_delayed_orders(db: Session, skip: int = 0, limit: int = 10):
     now = datetime.now(timezone.utc)
-    return db.query(models.Order).filter(
+    query = db.query(models.Order).filter(
         models.Order.delivery_date.is_(None),
         models.Order.return_deadline < now
-    ).all()
+    )
+    total = query.count()
+    orders = query.order_by(models.Order.id).offset(skip).limit(limit).all()
+    return orders, total

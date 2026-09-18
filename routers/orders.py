@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 import crud, schemas
+from config import settings
 from database import get_db
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
@@ -25,7 +26,18 @@ def return_book(order_id: int, db: Session = Depends(get_db)):
         
     return returned_order
 
-@router.get("/delayed", response_model=list[schemas.OrderResponse])
-def get_delayed_orders(db: Session = Depends(get_db)):
+@router.get("/delayed", response_model=schemas.PageResponse[schemas.OrderResponse])
+def get_delayed_orders(
+    page: int = Query(1, ge=1, description="Page number"),
+    size: int = Query(settings.DEFAULT_PAGE_SIZE, ge=1, le=settings.MAX_PAGE_SIZE, description="Items per page"),
+    db: Session = Depends(get_db),
+):
 
-    return crud.get_delayed_orders(db=db)
+    items, total = crud.get_delayed_orders(db=db, skip=(page - 1) * size, limit=size)
+    return schemas.PageResponse(
+        items=items,
+        total=total,
+        page=page,
+        size=size,
+        pages=(total + size - 1) // size,
+    )

@@ -47,14 +47,20 @@ class TestListBooks:
     def test_empty_list_initially(self, client):
         resp = client.get("/books/")
         assert resp.status_code == 200
-        assert resp.json() == []
+        body = resp.json()
+        assert body["items"] == []
+        assert body["total"] == 0
+        assert body["page"] == 1
+        assert body["size"] == 10
+        assert body["pages"] == 0
 
     def test_list_returns_created_books(self, client, created_book):
         resp = client.get("/books/")
         assert resp.status_code == 200
-        books = resp.json()
-        assert len(books) == 1
-        assert books[0]["title"] == created_book["book"]["title"]
+        body = resp.json()
+        assert body["total"] == 1
+        assert len(body["items"]) == 1
+        assert body["items"][0]["title"] == created_book["book"]["title"]
 
     def test_list_multiple_books(self, client):
         for i in range(3):
@@ -64,4 +70,65 @@ class TestListBooks:
             )
             assert r.status_code == 200
         resp = client.get("/books/")
-        assert {b["title"] for b in resp.json()} == {"B0", "B1", "B2"}
+        assert {b["title"] for b in resp.json()["items"]} == {"B0", "B1", "B2"}
+
+
+def seed_books(client, count):
+    for i in range(count):
+        r = client.post(
+            "/books/",
+            json={"title": f"B{i:02d}", "author": f"A{i:02d}", "price": 1.0, "stock": 1},
+        )
+        assert r.status_code == 200
+
+
+class TestPagination:
+    def test_default_page_and_size(self, client):
+        seed_books(client, 15)
+        resp = client.get("/books/")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["page"] == 1
+        assert body["size"] == 10
+        assert len(body["items"]) == 10
+        assert body["total"] == 15
+        assert body["pages"] == 2
+
+    def test_second_page_returns_remaining_items(self, client):
+        seed_books(client, 15)
+        body = client.get("/books/", params={"page": 2, "size": 10}).json()
+        assert len(body["items"]) == 5
+        assert body["items"][0]["title"] == "B10"
+        assert body["items"][-1]["title"] == "B14"
+
+    def test_out_of_range_page_returns_empty_items(self, client):
+        seed_books(client, 5)
+        body = client.get("/books/", params={"page": 3, "size": 10}).json()
+        assert body["items"] == []
+        assert body["total"] == 5
+        assert body["pages"] == 1
+
+    @pytest.mark.parametrize(
+        "params",
+        [{"page": 0}, {"page": -1}, {"size": 0}, {"size": 101}],
+        ids=["page-zero", "page-negative", "size-zero", "size-too-large"],
+    )
+    def test_invalid_pagination_params_422(self, client, params):
+        resp = client.get("/books/", params=params)
+        assert resp.status_code == 422
+
+    def test_delayed_endpoint_is_paginated(self, client, created_user, created_book):
+        for _ in range(3):
+            r = client.post(
+                "/orders/borrow",
+                json={
+                    "user_id": created_user["user"]["id"],
+                    "book_id": created_book["book"]["id"],
+                    "return_deadline": "2000-01-01T00:00:00",
+                },
+            )
+            assert r.status_code == 200
+        body = client.get("/orders/delayed", params={"page": 1, "size": 2}).json()
+        assert body["total"] == 3
+        assert body["pages"] == 2
+        assert len(body["items"]) == 2

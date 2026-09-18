@@ -1,6 +1,16 @@
 from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import datetime
-from typing import Optional
+from typing import Generic, Optional, TypeVar
+
+T = TypeVar("T")
+
+
+class PageResponse(BaseModel, Generic[T]):
+    items: list[T]
+    total: int
+    page: int
+    size: int
+    pages: int
 
 class UserCreate(BaseModel):
     username: str

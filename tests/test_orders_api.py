@@ -18,7 +18,7 @@ class TestBorrow:
         assert body["delivery_date"] is None
 
         # stock must have been decremented by one
-        book = client.get("/books/").json()[0]
+        book = client.get("/books/").json()["items"][0]
         assert book["stock"] == created_book["book"]["stock"] - 1
 
     def test_borrow_nonexistent_book_400(self, client, created_user):
@@ -63,7 +63,7 @@ class TestReturnBook:
 
         # stock must be restored to its original value
         book = next(
-            b for b in client.get("/books/").json() if b["id"] == created_book["book"]["id"]
+            b for b in client.get("/books/").json()["items"] if b["id"] == created_book["book"]["id"]
         )
         assert book["stock"] == original_stock
 
@@ -83,7 +83,9 @@ class TestDelayedOrders:
     def test_no_delayed_orders_initially(self, client):
         resp = client.get("/orders/delayed")
         assert resp.status_code == 200
-        assert resp.json() == []
+        body = resp.json()
+        assert body["items"] == []
+        assert body["total"] == 0
 
     def test_overdue_order_appears_in_delayed_list(self, client, created_user, created_book):
         # create an order with a past deadline
@@ -97,7 +99,7 @@ class TestDelayedOrders:
 
         resp = client.get("/orders/delayed")
         assert resp.status_code == 200
-        ids = [o["id"] for o in resp.json()]
+        ids = [o["id"] for o in resp.json()["items"]]
         assert r.json()["id"] in ids
 
 
@@ -137,7 +139,7 @@ class TestFullWorkflow:
 
         # 5. Returning one order -> stock becomes 1 again
         client.put(f"/orders/{o1['id']}/return")
-        book = next(bk for bk in client.get("/books/").json() if bk["id"] == b["id"])
+        book = next(bk for bk in client.get("/books/").json()["items"] if bk["id"] == b["id"])
         assert book["stock"] == 1
 
         # 6. Borrowing again succeeds
