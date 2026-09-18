@@ -132,3 +132,54 @@ class TestPagination:
         assert body["total"] == 3
         assert body["pages"] == 2
         assert len(body["items"]) == 2
+
+
+def seed_book(client, title):
+    r = client.post(
+        "/books/",
+        json={"title": title, "author": "A", "price": 1.0, "stock": 1},
+    )
+    assert r.status_code == 200
+    return r.json()
+
+
+class TestSearchBooks:
+    def test_exact_title_match(self, client):
+        book = seed_book(client, "Clean Code")
+        body = client.get("/books/search", params={"title": "Clean Code"}).json()
+        assert body["total"] == 1
+        assert body["items"][0]["id"] == book["id"]
+
+    def test_partial_title_does_not_match(self, client):
+        seed_book(client, "Clean Code")
+        body = client.get("/books/search", params={"title": "Clean"}).json()
+        assert body["items"] == []
+        assert body["total"] == 0
+
+    def test_search_is_case_sensitive(self, client):
+        seed_book(client, "Clean Code")
+        body = client.get("/books/search", params={"title": "clean code"}).json()
+        assert body["items"] == []
+        assert body["total"] == 0
+
+    def test_search_no_match_returns_empty_page(self, client):
+        seed_book(client, "Clean Code")
+        body = client.get("/books/search", params={"title": "Unknown"}).json()
+        assert body["items"] == []
+        assert body["total"] == 0
+        assert body["page"] == 1
+        assert body["pages"] == 0
+
+    def test_search_missing_title_param_422(self, client):
+        resp = client.get("/books/search")
+        assert resp.status_code == 422
+
+    def test_search_is_paginated(self, client):
+        for i in range(3):
+            seed_book(client, "Duplicate Title")
+        body = client.get(
+            "/books/search", params={"title": "Duplicate Title", "page": 1, "size": 2}
+        ).json()
+        assert body["total"] == 3
+        assert body["pages"] == 2
+        assert len(body["items"]) == 2

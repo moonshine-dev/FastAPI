@@ -56,6 +56,12 @@ def get_books(db: Session, skip: int = 0, limit: int = 10):
 def get_book_by_id(db: Session, book_id: int):
     return db.query(models.Book).filter(models.Book.id == book_id).first()
 
+def search_books_by_title(db: Session, title: str, skip: int = 0, limit: int = 10):
+    query = db.query(models.Book).filter(models.Book.title == title)
+    total = query.count()
+    books = query.order_by(models.Book.id).offset(skip).limit(limit).all()
+    return books, total
+
 
 def create_order(db: Session, order: schemas.OrderCreate):
     rows = db.query(models.Book).filter(
