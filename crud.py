@@ -58,42 +58,64 @@ def get_book_by_id(db: Session, book_id: int):
 
 
 def create_order(db: Session, order: schemas.OrderCreate):
-    book = get_book_by_id(db, book_id=order.book_id)
-    
-    if book is None or book.stock <= 0:
+    rows = db.query(models.Book).filter(
+        models.Book.id == order.book_id,
+        models.Book.stock > 0
+    ).update(
+        {"stock": models.Book.stock - 1},
+        synchronize_session=False
+    )
+
+    if rows == 0:
+        db.rollback()
         return None
-        
-    book.stock -= 1
-    
+
     new_order = models.Order(
         user_id=order.user_id,
         book_id=order.book_id,
         return_deadline=order.return_deadline
     )
-    
-    db.add(new_order)
-    db.commit()
+
+    try:
+        db.add(new_order)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     db.refresh(new_order)
     return new_order
 
 def return_book(db: Session, order_id: int):
-    
-    order = db.query(models.Order).filter(models.Order.id == order_id).first()
-    
-    #meaning if the boook was not returned
-    if order and order.delivery_date is None:
+    rows = db.query(models.Order).filter(
+        models.Order.id == order_id,
+        models.Order.delivery_date.is_(None)
+    ).update(
+        {"delivery_date": datetime.now(timezone.utc)},
+        synchronize_session=False
+    )
 
-        order.delivery_date = datetime.now(timezone.utc)
-        
-        book = get_book_by_id(db, book_id=order.book_id)
-        if book:
-            book.stock += 1
-            
+    if rows == 0:
+        db.rollback()
+        return None
+
+    book_id = db.query(models.Order.book_id).filter(
+        models.Order.id == order_id
+    ).scalar()
+
+    db.query(models.Book).filter(
+        models.Book.id == book_id
+    ).update(
+        {"stock": models.Book.stock + 1},
+        synchronize_session=False
+    )
+
+    try:
         db.commit()
-        db.refresh(order)
-        return order
-        
-    return None
+    except Exception:
+        db.rollback()
+        raise
+
+    return db.query(models.Order).filter(models.Order.id == order_id).first()
 
 def get_delayed_orders(db: Session, skip: int = 0, limit: int = 10):
     now = datetime.now(timezone.utc)

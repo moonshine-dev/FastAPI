@@ -149,3 +149,39 @@ class TestFullWorkflow:
         )
         assert r4.status_code == 200
         assert r4.json()["id"] != o2["id"]
+
+
+class TestStockGuard:
+    """The borrow path must use an atomic conditional UPDATE (stock > 0)."""
+
+    def test_cannot_borrow_more_copies_than_stock(self, client, created_user):
+        r = client.post(
+            "/books/",
+            json={"title": "Limited", "author": "A", "price": 5.0, "stock": 2},
+        )
+        book_id = r.json()["id"]
+        payload = {
+            "user_id": created_user["user"]["id"],
+            "book_id": book_id,
+            "return_deadline": "2099-01-01T00:00:00",
+        }
+        assert client.post("/orders/borrow", json=payload).status_code == 200
+        assert client.post("/orders/borrow", json=payload).status_code == 200
+
+        resp = client.post("/orders/borrow", json=payload)
+        assert resp.status_code == 400
+
+        body = client.get("/books/").json()["items"][0]
+        assert body["stock"] == 0
+
+    def test_failed_borrow_leaves_stock_untouched(self, client, created_user, created_book):
+        payload = {
+            "user_id": created_user["user"]["id"],
+            "book_id": 99999,
+            "return_deadline": "2099-01-01T00:00:00",
+        }
+        resp = client.post("/orders/borrow", json=payload)
+        assert resp.status_code == 400
+
+        stock = client.get("/books/").json()["items"][0]["stock"]
+        assert stock == created_book["book"]["stock"]
