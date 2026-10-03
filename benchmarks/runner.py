@@ -11,7 +11,7 @@ import time
 
 import httpx
 
-import models
+from app.books.models import Book
 from benchmarks.indexes import drop_indexes, recreate_indexes
 from benchmarks.scenarios import Scenario
 from seed import SeedError, count_of, seed
@@ -64,13 +64,13 @@ def ensure_seed(session, seed_model: str, count: int) -> None:
 
 
 def sample_titles(session, sample_size: int = TITLES_SAMPLE_SIZE) -> list:
-    total = count_of(session, models.Book)
+    total = count_of(session, Book)
     if total == 0:
         raise SeedError("books table is empty - run seed before benchmarking.")
     sample_size = min(sample_size, total)
     # ids are contiguous because seeding only appends (see seed.py top-up rule)
     ids = random.sample(range(1, total + 1), sample_size)
-    rows = session.query(models.Book.id, models.Book.title).filter(models.Book.id.in_(ids)).all()
+    rows = session.query(Book.id, Book.title).filter(Book.id.in_(ids)).all()
     titles = [t for _, t in rows]
     if not titles:
         raise SeedError("Could not sample any book titles.")

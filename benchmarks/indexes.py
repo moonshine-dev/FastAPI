@@ -4,7 +4,7 @@ from sqlalchemy import text
 
 from database import Base
 
-import models  # noqa: F401  (populates Base.metadata with tables/indexes)
+import app  # noqa: F401  (populates Base.metadata with tables/indexes)
 
 # Names of all non-primary-key indexes declared on the models.
 SECONDARY_INDEXES = [

@@ -12,7 +12,7 @@ class TestCreateBook:
             "stock": 5,
             "description": None,
         }
-        resp = client.post("/books/", json=payload)
+        resp = client.post("/api/v1/books/", json=payload)
         assert resp.status_code == 200
         body = resp.json()
         assert body["title"] == payload["title"]
@@ -33,19 +33,60 @@ class TestCreateBook:
             "stock": 1,
         }
         payload.pop(field)
-        resp = client.post("/books/", json=payload)
+        resp = client.post("/api/v1/books/", json=payload)
+        assert resp.status_code == 422
+
+    @pytest.mark.parametrize(
+        "field,value",
+        [
+            ("price", 0.0),
+            ("price", -5.0),
+            ("stock", -1),
+            ("title", ""),
+            ("author", ""),
+            ("description", "x" * 501),
+        ],
+        ids=[
+            "zero-price",
+            "negative-price",
+            "negative-stock",
+            "empty-title",
+            "empty-author",
+            "too-long-description",
+        ],
+    )
+    def test_create_book_invalid_values_422(self, client, field, value):
+        payload = {
+            "title": "Valid",
+            "author": "Valid",
+            "price": 10.0,
+            "stock": 1,
+        }
+        payload[field] = value
+        resp = client.post("/api/v1/books/", json=payload)
+        assert resp.status_code == 422
+
+    def test_create_book_extra_field_422(self, client):
+        payload = {
+            "title": "Valid",
+            "author": "Valid",
+            "price": 10.0,
+            "stock": 1,
+            "isbn": "123",
+        }
+        resp = client.post("/api/v1/books/", json=payload)
         assert resp.status_code == 422
 
     def test_description_is_optional(self, client):
         payload = {"title": "No Desc", "author": "Anon", "price": 9.9, "stock": 1}
-        resp = client.post("/books/", json=payload)
+        resp = client.post("/api/v1/books/", json=payload)
         assert resp.status_code == 200
         assert resp.json()["description"] is None
 
 
 class TestListBooks:
     def test_empty_list_initially(self, client):
-        resp = client.get("/books/")
+        resp = client.get("/api/v1/books/")
         assert resp.status_code == 200
         body = resp.json()
         assert body["items"] == []
@@ -55,7 +96,7 @@ class TestListBooks:
         assert body["pages"] == 0
 
     def test_list_returns_created_books(self, client, created_book):
-        resp = client.get("/books/")
+        resp = client.get("/api/v1/books/")
         assert resp.status_code == 200
         body = resp.json()
         assert body["total"] == 1
@@ -65,18 +106,18 @@ class TestListBooks:
     def test_list_multiple_books(self, client):
         for i in range(3):
             r = client.post(
-                "/books/",
+                "/api/v1/books/",
                 json={"title": f"B{i}", "author": f"A{i}", "price": i + 1.0, "stock": 2},
             )
             assert r.status_code == 200
-        resp = client.get("/books/")
+        resp = client.get("/api/v1/books/")
         assert {b["title"] for b in resp.json()["items"]} == {"B0", "B1", "B2"}
 
 
 def seed_books(client, count):
     for i in range(count):
         r = client.post(
-            "/books/",
+            "/api/v1/books/",
             json={"title": f"B{i:02d}", "author": f"A{i:02d}", "price": 1.0, "stock": 1},
         )
         assert r.status_code == 200
@@ -85,7 +126,7 @@ def seed_books(client, count):
 class TestPagination:
     def test_default_page_and_size(self, client):
         seed_books(client, 15)
-        resp = client.get("/books/")
+        resp = client.get("/api/v1/books/")
         assert resp.status_code == 200
         body = resp.json()
         assert body["page"] == 1
@@ -96,39 +137,56 @@ class TestPagination:
 
     def test_second_page_returns_remaining_items(self, client):
         seed_books(client, 15)
-        body = client.get("/books/", params={"page": 2, "size": 10}).json()
+        body = client.get("/api/v1/books/", params={"page": 2, "size": 10}).json()
         assert len(body["items"]) == 5
         assert body["items"][0]["title"] == "B10"
         assert body["items"][-1]["title"] == "B14"
 
     def test_out_of_range_page_returns_empty_items(self, client):
         seed_books(client, 5)
-        body = client.get("/books/", params={"page": 3, "size": 10}).json()
+        body = client.get("/api/v1/books/", params={"page": 3, "size": 10}).json()
         assert body["items"] == []
         assert body["total"] == 5
         assert body["pages"] == 1
 
     @pytest.mark.parametrize(
         "params",
-        [{"page": 0}, {"page": -1}, {"size": 0}, {"size": 101}],
-        ids=["page-zero", "page-negative", "size-zero", "size-too-large"],
+        [
+            {"page": 0},
+            {"page": -1},
+            {"size": 0},
+            {"size": 101},
+            {"page": "abc"},
+            {"size": "abc"},
+            {"page": 1.5},
+        ],
+        ids=[
+            "page-zero",
+            "page-negative",
+            "size-zero",
+            "size-too-large",
+            "page-not-int",
+            "size-not-int",
+            "page-float",
+        ],
     )
     def test_invalid_pagination_params_422(self, client, params):
-        resp = client.get("/books/", params=params)
+        resp = client.get("/api/v1/books/", params=params)
         assert resp.status_code == 422
 
-    def test_delayed_endpoint_is_paginated(self, client, created_user, created_book):
+    def test_delayed_endpoint_is_paginated(self, client, created_user, created_book, backdate_order):
         for _ in range(3):
             r = client.post(
-                "/orders/borrow",
+                "/api/v1/orders/borrow",
                 json={
                     "user_id": created_user["user"]["id"],
                     "book_id": created_book["book"]["id"],
-                    "return_deadline": "2000-01-01T00:00:00",
+                    "return_deadline": "2099-01-01T00:00:00",
                 },
             )
             assert r.status_code == 200
-        body = client.get("/orders/delayed", params={"page": 1, "size": 2}).json()
+            backdate_order(r.json()["id"])
+        body = client.get("/api/v1/orders/delayed", params={"page": 1, "size": 2}).json()
         assert body["total"] == 3
         assert body["pages"] == 2
         assert len(body["items"]) == 2
@@ -136,7 +194,7 @@ class TestPagination:
 
 def seed_book(client, title):
     r = client.post(
-        "/books/",
+        "/api/v1/books/",
         json={"title": title, "author": "A", "price": 1.0, "stock": 1},
     )
     assert r.status_code == 200
@@ -146,39 +204,44 @@ def seed_book(client, title):
 class TestSearchBooks:
     def test_exact_title_match(self, client):
         book = seed_book(client, "Clean Code")
-        body = client.get("/books/search", params={"title": "Clean Code"}).json()
+        body = client.get("/api/v1/books/search", params={"title": "Clean Code"}).json()
         assert body["total"] == 1
         assert body["items"][0]["id"] == book["id"]
 
     def test_partial_title_does_not_match(self, client):
         seed_book(client, "Clean Code")
-        body = client.get("/books/search", params={"title": "Clean"}).json()
+        body = client.get("/api/v1/books/search", params={"title": "Clean"}).json()
         assert body["items"] == []
         assert body["total"] == 0
 
     def test_search_is_case_sensitive(self, client):
         seed_book(client, "Clean Code")
-        body = client.get("/books/search", params={"title": "clean code"}).json()
+        body = client.get("/api/v1/books/search", params={"title": "clean code"}).json()
         assert body["items"] == []
         assert body["total"] == 0
 
     def test_search_no_match_returns_empty_page(self, client):
         seed_book(client, "Clean Code")
-        body = client.get("/books/search", params={"title": "Unknown"}).json()
+        body = client.get("/api/v1/books/search", params={"title": "Unknown"}).json()
         assert body["items"] == []
         assert body["total"] == 0
         assert body["page"] == 1
         assert body["pages"] == 0
 
-    def test_search_missing_title_param_422(self, client):
-        resp = client.get("/books/search")
+    @pytest.mark.parametrize(
+        "params",
+        [{}, {"title": ""}, {"title": "x" * 101}],
+        ids=["missing-title", "empty-title", "too-long-title"],
+    )
+    def test_search_invalid_title_params_422(self, client, params):
+        resp = client.get("/api/v1/books/search", params=params)
         assert resp.status_code == 422
 
     def test_search_is_paginated(self, client):
         for i in range(3):
             seed_book(client, "Duplicate Title")
         body = client.get(
-            "/books/search", params={"title": "Duplicate Title", "page": 1, "size": 2}
+            "/api/v1/books/search", params={"title": "Duplicate Title", "page": 1, "size": 2}
         ).json()
         assert body["total"] == 3
         assert body["pages"] == 2

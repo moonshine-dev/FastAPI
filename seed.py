@@ -10,7 +10,9 @@ from datetime import datetime, timedelta, timezone
 from faker import Faker
 from sqlalchemy import func, insert
 
-import models
+from app.books.models import Book
+from app.orders.models import Order
+from app.users.models import User
 
 fake = Faker("en_US")
 
@@ -63,7 +65,7 @@ def _need(count: int, current: int, label: str) -> int:
 
 def _password_hash() -> str:
     # One bcrypt call per process; reused for every seeded user.
-    from crud import get_password_hash
+    from app.users.security import get_password_hash
 
     return get_password_hash(DUMMY_PASSWORD)
 
@@ -81,11 +83,11 @@ def _user_rows(count: int, start_index: int, password_hash: str):
 
 
 def seed_users(session, count: int) -> int:
-    current = count_of(session, models.User)
+    current = count_of(session, User)
     need = _need(count, current, "users")
     if need == 0:
         return current
-    return _bulk_insert(session, models.User, _user_rows(need, current, _password_hash()), "users")
+    return _bulk_insert(session, User, _user_rows(need, current, _password_hash()), "users")
 
 
 def _book_rows(count: int, start_index: int):
@@ -100,11 +102,11 @@ def _book_rows(count: int, start_index: int):
 
 
 def seed_books(session, count: int) -> int:
-    current = count_of(session, models.Book)
+    current = count_of(session, Book)
     need = _need(count, current, "books")
     if need == 0:
         return current
-    return _bulk_insert(session, models.Book, _book_rows(need, current), "books")
+    return _bulk_insert(session, Book, _book_rows(need, current), "books")
 
 
 def _id_range(session, model):
@@ -137,13 +139,13 @@ def _order_rows(count: int, user_range, book_range):
 
 
 def seed_orders(session, count: int) -> int:
-    current = count_of(session, models.Order)
+    current = count_of(session, Order)
     need = _need(count, current, "orders")
     if need == 0:
         return current
-    user_range = _id_range(session, models.User)
-    book_range = _id_range(session, models.Book)
-    return _bulk_insert(session, models.Order, _order_rows(need, user_range, book_range), "orders")
+    user_range = _id_range(session, User)
+    book_range = _id_range(session, Book)
+    return _bulk_insert(session, Order, _order_rows(need, user_range, book_range), "orders")
 
 
 def seed(session, count: int, model: str = "all") -> dict:

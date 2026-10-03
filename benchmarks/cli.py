@@ -14,7 +14,7 @@ import typer
 from sqlalchemy import text
 
 from database import Base, engine, SessionLocal
-import models  # noqa: F401  (populates Base.metadata)
+import app  # noqa: F401  (populates Base.metadata)
 
 app = typer.Typer(help="Database reset / seed / benchmark utilities.", no_args_is_help=True)
 

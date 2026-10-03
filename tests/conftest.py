@@ -7,6 +7,8 @@ Shared fixtures for integration tests over an HTTP client.
   from the HTTP layer down through CRUD to the test database.
 """
 
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -68,7 +70,7 @@ def created_user(client):
         "email": "ali@example.com",
         "password": "S3cretPass!",
     }
-    resp = client.post("/users/", json=payload)
+    resp = client.post("/api/v1/users/", json=payload)
     assert resp.status_code == 200, resp.text
     return {"payload": payload, "user": resp.json()}
 
@@ -83,7 +85,7 @@ def created_book(client):
         "stock": 3,
         "description": "A book about TDD.",
     }
-    resp = client.post("/books/", json=payload)
+    resp = client.post("/api/v1/books/", json=payload)
     assert resp.status_code == 200, resp.text
     return {"payload": payload, "book": resp.json()}
 
@@ -96,6 +98,23 @@ def created_order(client, created_user, created_book):
         "book_id": created_book["book"]["id"],
         "return_deadline": "2099-01-01T00:00:00",
     }
-    resp = client.post("/orders/borrow", json=payload)
+    resp = client.post("/api/v1/orders/borrow", json=payload)
     assert resp.status_code == 200, resp.text
     return {"payload": payload, "order": resp.json()}
+
+
+@pytest.fixture()
+def backdate_order(test_db):
+    """Moves an existing order's return_deadline into the past (DB level)."""
+
+    def _backdate(order_id: int, deadline: datetime | None = None) -> int:
+        from app.orders.models import Order
+
+        when = deadline or datetime(2000, 1, 1)
+        test_db.query(Order).filter(Order.id == order_id).update(
+            {"return_deadline": when}, synchronize_session=False
+        )
+        test_db.commit()
+        return order_id
+
+    return _backdate

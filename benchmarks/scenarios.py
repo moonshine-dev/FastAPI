@@ -31,9 +31,9 @@ def _search_books_params(titles: list) -> dict:
 SCENARIOS = {
     "search_books": Scenario(
         name="search_books",
-        description="GET /books/search - exact title match search",
+        description="GET /api/v1/books/search - exact title match search",
         method="GET",
-        path="/books/search",
+        path="/api/v1/books/search",
         seed_model="books",
         default_counts=(1000, 2000, 3000, 50000, 10000000),
         build_params=_search_books_params,
