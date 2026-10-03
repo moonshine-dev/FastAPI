@@ -24,7 +24,6 @@ markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 matplotlib==3.11.2
 mdurl==0.1.2
-passlib==1.7.4
 psycopg2-binary==2.9.12
 pydantic==2.13.4
 pydantic-extra-types==2.11.1
